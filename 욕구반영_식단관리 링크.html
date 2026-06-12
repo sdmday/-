@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>욕구반영 식단 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1A1A2E; --ink-mid: #3D3D5C; --ink-soft: #6B6B8A; --ink-faint: #A8A8C0;
+  --cream: #FAF8F5; --paper: #FFFFFF; --rule: #E8E6F0;
+  --moss: #3B6B4A; --moss-mid: #5A9168; --moss-pale: #EBF3EE; --moss-faint: #F3F9F5;
+  --amber: #C4760A; --amber-pale: #FDF3E0;
+  --rose: #B54040; --rose-pale: #FDEAEA;
+  --sky: #2A6A9E; --sky-pale: #EAF3FB;
+  --shadow: 0 2px 12px rgba(26,26,46,0.08);
+  --shadow-md: 0 6px 24px rgba(26,26,46,0.12);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; font-size: 14px; }
+
+.site-header { background: var(--ink); padding: 0 20px; position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 16px rgba(26,26,46,0.3); }
+.site-header-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+.site-logo { font-family: 'Nanum Myeongjo', serif; font-weight: 800; font-size: 15px; color: #fff; line-height: 1.2; }
+.site-logo small { display: block; font-family: 'Noto Sans KR', sans-serif; font-weight: 300; font-size: 10px; color: rgba(255,255,255,0.5); }
+.sync-status { font-size: 11px; padding: 5px 11px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.08); }
+.sync-status.ok { border-color: #4CAF85; color: #4CAF85; background: rgba(76,175,133,0.1); }
+.sync-status.err { border-color: #E05252; color: #E05252; background: rgba(224,82,82,0.1); }
+.sync-status.loading { animation: pulse 1.2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.site-nav { background: var(--paper); border-bottom: 1px solid var(--rule); position: sticky; top: 56px; z-index: 199; }
+.site-nav-inner { max-width: 720px; margin: 0 auto; display: flex; }
+.nav-btn { flex: 1; padding: 12px 6px; border: none; background: none; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 500; color: var(--ink-faint); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.18s; }
+.nav-btn.active { color: var(--moss); border-bottom-color: var(--moss); font-weight: 700; }
+
+main { max-width: 720px; margin: 0 auto; padding: 20px 14px 100px; }
+.page { display: none; }
+.page.active { display: block; }
+
+.card { background: var(--paper); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; margin-bottom: 14px; border: 1px solid var(--rule); }
+.card-head { font-size: 12px; font-weight: 700; color: var(--moss); margin-bottom: 13px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.label { display: block; font-size: 11px; font-weight: 700; color: var(--ink-soft); margin-bottom: 5px; letter-spacing: 0.3px; }
+.req { color: var(--rose); }
+select, input[type="text"], input[type="month"], textarea {
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--rule); border-radius: 8px;
+  font-family: 'Noto Sans KR', sans-serif; font-size: 13px; color: var(--ink);
+  background: var(--cream); outline: none; transition: border-color 0.18s; -webkit-appearance: none;
+}
+select:focus, input:focus, textarea:focus { border-color: var(--moss-mid); background: var(--paper); }
+textarea { resize: vertical; min-height: 64px; line-height: 1.7; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.drop-zone { border: 2px dashed var(--rule); border-radius: 10px; padding: 22px 16px; text-align: center; cursor: pointer; transition: all 0.18s; background: var(--cream); position: relative; }
+.drop-zone:hover, .drop-zone.over { border-color: var(--moss-mid); background: var(--moss-faint); }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.drop-icon { font-size: 28px; margin-bottom: 7px; }
+.drop-text { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+.drop-sub { font-size: 11px; color: var(--ink-faint); margin-top: 3px; }
+.thumb-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 11px; }
+.thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; background: var(--rule); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-del { position: absolute; top: 3px; right: 3px; background: rgba(26,26,46,0.65); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+.btn-primary { width: 100%; padding: 14px; background: var(--moss); color: #fff; border: none; border-radius: 10px; font-family: 'Noto Sans KR', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.18s; box-shadow: 0 4px 14px rgba(59,107,74,0.28); margin-top: 4px; }
+.btn-primary:hover { background: #2F5A3C; }
+.btn-primary:disabled { background: var(--ink-faint); box-shadow: none; cursor: not-allowed; }
+
+.filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input { flex: 1; min-width: 110px; font-size: 12px; padding: 9px 11px; }
+
+.rec-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 14px; margin-bottom: 12px; overflow: hidden; box-shadow: var(--shadow); }
+.rec-head { padding: 13px 16px 10px; border-bottom: 1px solid var(--rule); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rec-name { font-family: 'Nanum Myeongjo', serif; font-weight: 700; font-size: 16px; color: var(--ink); }
+.rec-meta { font-size: 11px; color: var(--ink-faint); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
+.rec-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.badge { padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-grade { background: var(--sky-pale); color: var(--sky); }
+.badge-month { background: var(--amber-pale); color: var(--amber); }
+.rec-body { padding: 13px 16px; }
+.rec-section { margin-bottom: 11px; }
+.rec-section:last-child { margin-bottom: 0; }
+.rec-section-title { font-size: 10px; font-weight: 700; color: var(--ink-faint); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px; }
+.rec-text { font-size: 12px; color: var(--ink-mid); line-height: 1.7; white-space: pre-wrap; }
+.rec-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.rec-photo { aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; background: var(--rule); }
+.rec-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
+.rec-photo:hover img { transform: scale(1.04); }
+.photo-more { position: absolute; inset: 0; background: rgba(26,26,46,0.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; }
+.rec-foot { padding: 8px 16px 12px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--rule); }
+.rec-ts { font-size: 11px; color: var(--ink-faint); }
+.btn-del { padding: 5px 11px; border-radius: 6px; border: 1px solid #FECACA; background: var(--rose-pale); font-size: 11px; font-weight: 600; color: var(--rose); cursor: pointer; }
+.btn-del:hover { background: #FAD5D5; }
+
+.empty { text-align: center; padding: 52px 20px; color: var(--ink-faint); }
+.empty-icon { font-size: 44px; margin-bottom: 12px; }
+.empty-msg { font-size: 14px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+.empty-sub { font-size: 12px; }
+
+.kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+.kpi { background: var(--paper); border: 1px solid var(--rule); border-radius: 14px; padding: 16px; text-align: center; box-shadow: var(--shadow); }
+.kpi-num { font-family: 'Nanum Myeongjo', serif; font-size: 32px; font-weight: 800; color: var(--moss); line-height: 1; margin-bottom: 5px; }
+.kpi-label { font-size: 11px; color: var(--ink-faint); font-weight: 500; }
+.eval-box { background: var(--moss-faint); border: 1px solid var(--moss-pale); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.eval-title { font-size: 12px; font-weight: 700; color: var(--moss); margin-bottom: 8px; }
+.eval-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(91,145,104,0.15); font-size: 12px; }
+.eval-item:last-child { border-bottom: none; }
+.eval-ok { color: var(--moss); font-weight: 700; }
+.eval-warn { color: var(--amber); font-weight: 700; }
+.eval-fail { color: var(--rose); font-weight: 700; }
+
+.lb { display: none; position: fixed; inset: 0; background: rgba(10,10,20,0.95); z-index: 999; align-items: center; justify-content: center; flex-direction: column; padding: 20px; }
+.lb.open { display: flex; }
+.lb-img { max-width: 90vw; max-height: 75vh; border-radius: 10px; object-fit: contain; }
+.lb-close { position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,0.12); border: none; color: #fff; width: 36px; height: 36px; border-radius: 50%; font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lb-caption { color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 12px; text-align: center; }
+
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(16px); background: var(--ink); color: #fff; padding: 10px 20px; border-radius: 22px; font-size: 13px; font-weight: 500; opacity: 0; transition: all 0.28s; z-index: 998; white-space: nowrap; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.loading-overlay { display: none; position: fixed; inset: 0; background: rgba(26,26,46,0.4); z-index: 500; align-items: center; justify-content: center; }
+.loading-overlay.show { display: flex; }
+.loading-box { background: var(--paper); border-radius: 14px; padding: 24px 32px; text-align: center; box-shadow: var(--shadow-md); }
+.loading-spinner { font-size: 32px; animation: spin 1s linear infinite; display: block; margin-bottom: 10px; }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.loading-text { font-size: 13px; color: var(--ink-soft); }
+
+@media (max-width: 420px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .thumb-row { grid-template-columns: repeat(3, 1fr); }
+  .rec-photos { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <div class="site-logo">
+      욕구반영 식단 관리
+      <small>주야간보호센터 · 기호·기피식품 월별 반영 기록</small>
+    </div>
+    <div class="sync-status loading" id="syncStatus">⏳ 연결 중...</div>
+  </div>
+</header>
+
+<nav class="site-nav">
+  <div class="site-nav-inner">
+    <button class="nav-btn active" onclick="gotoPage('reg', this)">✍️ 반영 등록</button>
+    <button class="nav-btn" onclick="gotoPage('list', this)">📋 현황 목록</button>
+    <button class="nav-btn" onclick="gotoPage('eval', this)">📊 평가 현황</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- 반영 등록 -->
+<div class="page active" id="page-reg">
+  <div class="card">
+    <div class="card-head">🧓 어르신 기본 정보</div>
+    <div class="grid2">
+      <div class="field">
+        <label class="label">어르신 성함 <span class="req">*</span></label>
+        <input type="text" id="regResident" placeholder="직접 입력">
+      </div>
+      <div class="field">
+        <label class="label">장기요양 등급</label>
+        <input type="text" id="regGrade" placeholder="예) 3등급">
+      </div>
+    </div>
+    <div class="field">
+      <label class="label">반영 연월 <span class="req">*</span></label>
+      <input type="month" id="regMonth">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🍽️ 반영 결과</div>
+    <div class="field">
+      <label class="label">식단 반영 결과 <span class="req">*</span></label>
+      <textarea id="regPreferResult" placeholder="예) 단호박죽 오후간식 주 2회 제공&#10;계란찜 매주 수요일 반영&#10;두부조림 중식 반찬 주 1회 제공"></textarea>
+    </div>
+    <div class="field">
+      <label class="label">기피식품 대체 내용</label>
+      <textarea id="regAvoidResult" placeholder="예) 돼지고기 → 닭고기로 대체 제공&#10;오이 포함 반찬 별도 제외 처리"></textarea>
+    </div>
+    <div class="field">
+      <label class="label">반영 식단일</label>
+      <input type="text" id="regReflectDates" placeholder="예) 6월 3일, 6월 10일, 6월 17일">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📷 반영 식단 사진</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" accept="image/*" multiple id="photoInput" onchange="handleFiles(this)">
+      <div class="drop-icon">🍱</div>
+      <div class="drop-text">사진을 탭하여 선택하거나 끌어다 놓으세요</div>
+      <div class="drop-sub">반영된 식단 사진 · 최대 6장</div>
+    </div>
+    <div class="thumb-row" id="thumbRow"></div>
+  </div>
+
+  <button class="btn-primary" id="submitBtn" onclick="submitRecord()">✅ 욕구반영 기록 등록</button>
+</div>
+
+<!-- 현황 목록 -->
+<div class="page" id="page-list">
+  <div class="filter-bar">
+    <input type="text" id="fltResident" placeholder="🔍 이름으로 검색" oninput="renderList()">
+    <select id="fltMonth" onchange="renderList()">
+      <option value="">전체 월</option>
+    </select>
+  </div>
+  <div id="listContainer"></div>
+</div>
+
+<!-- 평가 현황 -->
+<div class="page" id="page-eval">
+  <div class="kpi-grid" id="kpiGrid"></div>
+  <div class="eval-box">
+    <div class="eval-title">📋 공단 평가 기준 충족 현황</div>
+    <div id="evalItems"></div>
+  </div>
+  <div class="card">
+    <div class="card-head">📅 어르신별 월별 반영 현황</div>
+    <div id="monthGrid"></div>
+  </div>
+</div>
+
+</main>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <span class="loading-spinner">🔄</span>
+    <div class="loading-text" id="loadingText">저장 중...</div>
+  </div>
+</div>
+
+<div class="lb" id="lb" onclick="closeLb()">
+  <button class="lb-close" onclick="closeLb()">✕</button>
+  <img class="lb-img" id="lbImg" src="" alt="">
+  <div class="lb-caption" id="lbCaption"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 설정 ──
+const API_KEY = '$2a$10$Uwt.IujmFZXnzyCAF6XHootPW3ogJq0ZteugDAp3ZrmkWVmTfZZMu';
+const BIN_ID_KEY = 'needsBinId';
+let BIN_ID = localStorage.getItem(BIN_ID_KEY) || '';
+const BASE_URL = 'https://api.jsonbin.io/v3';
+
+let records = [];
+let uploadedPhotos = [];
+
+// ── INIT ──
+document.addEventListener('DOMContentLoaded', async () => {
+  const now = new Date();
+  document.getElementById('regMonth').value = now.toISOString().slice(0, 7);
+
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    addFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
+  });
+
+  await loadData();
+});
+
+// ── JSONBIN API ──
+function setSyncStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status ' + state;
+  el.textContent = text;
+}
+
+async function loadData() {
+  setSyncStatus('loading', '⏳ 불러오는 중...');
+  try {
+    if (!BIN_ID) {
+      // 새 bin 생성
+      const res = await fetch(`${BASE_URL}/b`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': API_KEY,
+          'X-Bin-Name': '욕구반영식단관리',
+          'X-Bin-Private': 'true'
+        },
+        body: JSON.stringify({ records: [] })
+      });
+      const data = await res.json();
+      BIN_ID = data.metadata.id;
+      localStorage.setItem(BIN_ID_KEY, BIN_ID);
+      records = [];
+    } else {
+      const res = await fetch(`${BASE_URL}/b/${BIN_ID}/latest`, {
+        headers: { 'X-Master-Key': API_KEY }
+      });
+      const data = await res.json();
+      records = data.record.records || [];
+    }
+    setSyncStatus('ok', '✅ 연결됨');
+    renderList();
+    renderEval();
+  } catch (e) {
+    setSyncStatus('err', '❌ 연결 오류');
+    toast('❌ 데이터 로드 실패. 네트워크를 확인해 주세요.');
+  }
+}
+
+async function saveData() {
+  const res = await fetch(`${BASE_URL}/b/${BIN_ID}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': API_KEY
+    },
+    body: JSON.stringify({ records })
+  });
+  if (!res.ok) throw new Error('저장 실패');
+}
+
+// ── NAV ──
+function gotoPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'list') renderList();
+  if (id === 'eval') renderEval();
+}
+
+// ── PHOTOS ──
+function handleFiles(input) {
+  addFiles(Array.from(input.files));
+  input.value = '';
+}
+function addFiles(files) {
+  const remaining = 6 - uploadedPhotos.length;
+  files.slice(0, remaining).forEach(f => {
+    // 이미지 압축 (최대 800px, 품질 0.7)
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const max = 800;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h * max / w); w = max; }
+        else { w = Math.round(w * max / h); h = max; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      uploadedPhotos.push(canvas.toDataURL('image/jpeg', 0.7));
+      renderThumbs();
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+}
+function removePhoto(i) { uploadedPhotos.splice(i, 1); renderThumbs(); }
+function renderThumbs() {
+  document.getElementById('thumbRow').innerHTML = uploadedPhotos.map((p, i) => `
+    <div class="thumb">
+      <img src="${p}" alt="">
+      <button class="thumb-del" onclick="removePhoto(${i})">✕</button>
+    </div>`).join('');
+}
+
+// ── SUBMIT ──
+async function submitRecord() {
+  const resident = document.getElementById('regResident').value.trim();
+  const month = document.getElementById('regMonth').value;
+  const preferResult = document.getElementById('regPreferResult').value.trim();
+
+  if (!resident) { toast('⚠️ 어르신 성함을 입력해 주세요'); return; }
+  if (!month) { toast('⚠️ 반영 연월을 선택해 주세요'); return; }
+  if (!preferResult) { toast('⚠️ 식단 반영 결과를 입력해 주세요'); return; }
+
+  const rec = {
+    id: Date.now(),
+    resident, month,
+    grade: document.getElementById('regGrade').value.trim(),
+    preferResult,
+    avoidResult: document.getElementById('regAvoidResult').value.trim(),
+    reflectDates: document.getElementById('regReflectDates').value.trim(),
+    photos: [...uploadedPhotos],
+    createdAt: new Date().toLocaleString('ko-KR')
+  };
+
+  const dup = records.find(r => r.resident === resident && r.month === month);
+  if (dup) {
+    if (!confirm(`${resident}의 ${month} 기록이 이미 있습니다. 덮어쓸까요?`)) return;
+    records = records.filter(r => !(r.resident === resident && r.month === month));
+  }
+
+  records.unshift(rec);
+
+  showLoading('저장 중...');
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  try {
+    await saveData();
+    setSyncStatus('ok', '✅ 저장됨');
+    toast('✅ 등록 완료! 현황 목록에서 확인하세요');
+
+    uploadedPhotos = [];
+    renderThumbs();
+    ['regResident', 'regGrade', 'regPreferResult', 'regAvoidResult', 'regReflectDates'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('regMonth').value = new Date().toISOString().slice(0, 7);
+    renderList();
+    renderEval();
+  } catch (e) {
+    // 저장 실패 시 롤백
+    records = records.filter(r => r.id !== rec.id);
+    setSyncStatus('err', '❌ 저장 오류');
+    toast('❌ 저장에 실패했습니다. 다시 시도해 주세요.');
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+// ── LIST ──
+function renderList() {
+  const fr = document.getElementById('fltResident').value.trim();
+  const fm = document.getElementById('fltMonth').value;
+
+  const months = [...new Set(records.map(r => r.month))].sort().reverse();
+  const sel = document.getElementById('fltMonth');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="">전체 월</option>';
+  months.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m.replace('-', '년 ') + '월';
+    if (m === curVal) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  let filtered = records.filter(r => {
+    if (fr && !r.resident.includes(fr)) return false;
+    if (fm && r.month !== fm) return false;
+    return true;
+  });
+
+  const cont = document.getElementById('listContainer');
+  if (filtered.length === 0) {
+    cont.innerHTML = `<div class="empty"><div class="empty-icon">🌿</div><div class="empty-msg">등록된 기록이 없습니다</div><div class="empty-sub">반영 등록 탭에서 첫 기록을 추가해 보세요</div></div>`;
+    return;
+  }
+
+  cont.innerHTML = filtered.map(r => {
+    const photoHtml = r.photos && r.photos.length > 0 ? `
+      <div class="rec-section">
+        <div class="rec-section-title">반영 식단 사진</div>
+        <div class="rec-photos">
+          ${r.photos.slice(0, 4).map((p, i) =>
+            i === 3 && r.photos.length > 4
+              ? `<div class="rec-photo" onclick="openLb('${p}','${r.resident} · ${r.month}')"><img src="${p}" alt=""><div class="photo-more">+${r.photos.length - 3}</div></div>`
+              : `<div class="rec-photo" onclick="openLb('${p}','${r.resident} · ${r.month}')"><img src="${p}" alt=""></div>`
+          ).join('')}
+        </div>
+      </div>` : '';
+
+    return `
+    <div class="rec-card">
+      <div class="rec-head">
+        <div>
+          <div class="rec-name">${r.resident}</div>
+          <div class="rec-meta">
+            <span>📅 ${r.month.replace('-', '년 ')}월</span>
+            ${r.grade ? `<span>🏷️ ${r.grade}</span>` : ''}
+          </div>
+        </div>
+        <div class="rec-badges">
+          <span class="badge badge-month">${r.month.slice(5)}월</span>
+          ${r.grade ? `<span class="badge badge-grade">${r.grade}</span>` : ''}
+        </div>
+      </div>
+      <div class="rec-body">
+        <div class="rec-section">
+          <div class="rec-section-title">식단 반영 결과</div>
+          <div class="rec-text">${r.preferResult}</div>
+        </div>
+        ${r.avoidResult ? `
+        <div class="rec-section">
+          <div class="rec-section-title">기피식품 대체 내용</div>
+          <div class="rec-text">${r.avoidResult}</div>
+        </div>` : ''}
+        ${r.reflectDates ? `
+        <div class="rec-section">
+          <div class="rec-section-title">반영 식단일</div>
+          <div class="rec-text">📆 ${r.reflectDates}</div>
+        </div>` : ''}
+        ${photoHtml}
+      </div>
+      <div class="rec-foot">
+        <div class="rec-ts">🕐 ${r.createdAt}</div>
+        <button class="btn-del" onclick="delRecord(${r.id})">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function delRecord(id) {
+  if (!confirm('이 기록을 삭제할까요?')) return;
+  records = records.filter(r => r.id !== id);
+  showLoading('삭제 중...');
+  try {
+    await saveData();
+    renderList();
+    renderEval();
+    toast('🗑️ 삭제되었습니다');
+  } catch (e) {
+    toast('❌ 삭제 실패. 다시 시도해 주세요.');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ── EVAL ──
+function renderEval() {
+  const total = records.length;
+  const residents = new Set(records.map(r => r.resident)).size;
+  const photos = records.reduce((a, r) => a + (r.photos ? r.photos.length : 0), 0);
+  const months = [...new Set(records.map(r => r.month))].length;
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi"><div class="kpi-num">${total}</div><div class="kpi-label">전체 반영 기록</div></div>
+    <div class="kpi"><div class="kpi-num">${residents}</div><div class="kpi-label">기록된 어르신 수</div></div>
+    <div class="kpi"><div class="kpi-num">${photos}</div><div class="kpi-label">등록된 사진 수</div></div>
+    <div class="kpi"><div class="kpi-num">${months}</div><div class="kpi-label">기록된 월 수</div></div>
+  `;
+
+  const curMonth = new Date().toISOString().slice(0, 7);
+  const curRecs = records.filter(r => r.month === curMonth);
+  const allResidents = [...new Set(records.map(r => r.resident))].sort();
+  const thisMonthCount = new Set(curRecs.map(r => r.resident)).size;
+  const totalRes = allResidents.length || 1;
+  const pct = Math.round(thisMonthCount / totalRes * 100);
+
+  const c1 = curRecs.filter(r => r.preferResult).length;
+  const c2 = curRecs.filter(r => r.photos && r.photos.length > 0).length;
+  const c3 = curRecs.filter(r => r.reflectDates).length;
+  const c4 = curRecs.filter(r => r.avoidResult).length;
+
+  document.getElementById('evalItems').innerHTML = `
+    <div class="eval-item"><span>식단 반영 결과 기록</span><span class="${c1>0?'eval-ok':'eval-warn'}">${c1>0?`✅ ${c1}건`:'⚠️ 미기록'}</span></div>
+    <div class="eval-item"><span>반영 식단 사진 첨부</span><span class="${c2>0?'eval-ok':'eval-warn'}">${c2>0?`✅ ${c2}명 첨부`:'⚠️ 사진 없음'}</span></div>
+    <div class="eval-item"><span>반영 식단일 기록</span><span class="${c3>0?'eval-ok':'eval-warn'}">${c3>0?`✅ ${c3}건`:'⚠️ 미기록'}</span></div>
+    <div class="eval-item"><span>기피식품 대체 기록</span><span class="${c4>0?'eval-ok':'eval-warn'}">${c4>0?`✅ ${c4}건`:'⚠️ 미기록'}</span></div>
+    <div class="eval-item"><span>이번 달 (${curMonth.replace('-','년 ')}월) 반영 완료</span><span class="${pct>=80?'eval-ok':pct>=50?'eval-warn':'eval-fail'}">${thisMonthCount}/${totalRes}명 (${pct}%)</span></div>
+  `;
+
+  const allMonths = [...new Set(records.map(r => r.month))].sort().reverse().slice(0, 6);
+  if (allMonths.length === 0) {
+    document.getElementById('monthGrid').innerHTML = '<div style="color:var(--ink-faint);font-size:12px;padding:12px 0;">기록이 없습니다</div>';
+    return;
+  }
+
+  let html = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 8px;color:var(--ink-soft);font-weight:700;border-bottom:1px solid var(--rule);">어르신</th>
+      ${allMonths.map(m => `<th style="padding:6px 4px;color:var(--ink-soft);font-weight:700;border-bottom:1px solid var(--rule);text-align:center;">${m.slice(5)}월</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  allResidents.forEach(res => {
+    html += `<tr><td style="padding:6px 8px;font-weight:500;color:var(--ink-mid);">${res}</td>`;
+    allMonths.forEach(m => {
+      const has = records.find(r => r.resident === res && r.month === m);
+      const hasPhoto = has && has.photos && has.photos.length > 0;
+      html += `<td style="text-align:center;padding:6px 4px;">${has ? `<span style="color:${hasPhoto?'var(--moss)':'var(--amber)'};font-size:14px;">${hasPhoto?'📷':'✅'}</span>` : `<span style="color:var(--rule);">—</span>`}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  html += '<div style="font-size:10px;color:var(--ink-faint);margin-top:8px;">📷 사진 포함 &nbsp;✅ 기록 있음(사진 없음) &nbsp;— 미기록</div>';
+  document.getElementById('monthGrid').innerHTML = html;
+}
+
+// ── LOADING ──
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || '처리 중...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+// ── LIGHTBOX & TOAST ──
+function openLb(src, caption) {
+  document.getElementById('lbImg').src = src;
+  document.getElementById('lbCaption').textContent = caption;
+  document.getElementById('lb').classList.add('open');
+}
+function closeLb() { document.getElementById('lb').classList.remove('open'); }
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
